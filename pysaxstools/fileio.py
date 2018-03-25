@@ -19,6 +19,8 @@ def join_fix_filepath(fname, dirpath):
 
 
 def load_data_columns(path=None, file_handle=None, delimiter=None):
+    # TODO: Add an optional arg to return header/footer/comment lines from the file
+    #       This will be very helpful down the road for parsing the extra stuff that other programs put in the files
     if path is not None:
         file_handle = open(fix_filepath(path), 'rU')
 
@@ -35,6 +37,8 @@ def load_data_columns(path=None, file_handle=None, delimiter=None):
         tokens = line.split(delimiter)
         float_values = []
         count = 0
+        # Get as many floats out before we hit weirdness. Weirdness at the end of lines is tolerated under the
+        # assumption that it's some sort of in-line comment (or just garbage) that can be thrown away.
         for token in tokens:
             try:
                 float_values.append(float(token))

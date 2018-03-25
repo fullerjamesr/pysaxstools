@@ -94,8 +94,10 @@ def autorg(saxsdata, names=None, **kwargs):
             saxstoolsutil.check_supported_kwargs(kwargs, _supportedargs, _supportedargvalues)))
 
     if type(saxsdata) == Saxscurve:
-        cmd.append('-')
-        output, returncode = saxstoolsutil.runexternal(cmd, input_pipe=str(saxsdata).encode())
+        cmd.append(saxsdata.name)
+        # There is a bug in autorg where results are not properly computed when fed in via stdin :-(
+        #output, returncode = saxstoolsutil.runexternal(cmd, input_pipe=str(saxsdata).encode())
+        output, returncode = saxstoolsutil.runexternal(cmd)
     elif isinstance(saxsdata, list):
         with fileio.open_tempfile(len(saxsdata)) as (tmp_file_handles, tmp_file_paths):
             cmd.extend(tmp_file_paths)
@@ -124,7 +126,7 @@ def autorg(saxsdata, names=None, **kwargs):
 
         results = parse_output(to_parse, fmt=kwargs['format'])
         if type(saxsdata) == Saxscurve:
-            return results['-']
+            return results[saxsdata.name]
         else:
             return results
     else:

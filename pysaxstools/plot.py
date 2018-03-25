@@ -129,9 +129,10 @@ def plot_3d(datas, axes, zvals=None, **kwargs):
     axes.autoscale()
 
 
-def fancy_gunier(saxsdata, axes, rg, i0, first, last):
+def fancy_gunier(saxsdata, axes, rg, i0, first, last, color='red'):
     # the argument `last` is inclusive but it will be used to slice the data
     last += 1
+    # x-axis data
     q_squared = saxsdata.q * saxsdata.q
     # set up axes -- the Y axes should be natural log scaled, but display linear values because they look nicer
     # (matplotlib is particularly heinous at ticking and labeling log scale axes that are not base 10)
@@ -150,10 +151,8 @@ def fancy_gunier(saxsdata, axes, rg, i0, first, last):
     ss_averages = np.sum(np.square(np.log(saxsdata.i[first:last]) - np.mean(np.log(saxsdata.i[first:last]))))
     ss_residuals = np.sum(np.square(np.log(saxsdata.i[first:last]) - np.log(gunier_fit_y)))
     rsquared = 1.0 - ss_residuals/ss_averages
-    axes.plot([q_squared[first], q_squared[last - 1]], [gunier_fit_y[0], gunier_fit_y[-1]], marker='', c="red",
-              label=r"Gunier fit, Rg = {:.2f} $\mathregular{{R^2}}$ = {:.3f}".format(rg, rsquared))
-    # enable legend
-    axes.legend()
+    axes.plot([q_squared[first], q_squared[last - 1]], [gunier_fit_y[0], gunier_fit_y[-1]], marker='', c=color,
+              label="Gunier fit,\nRg = {:.1f} $\\mathregular{{R^2}}$ = {:.3f}".format(rg, rsquared))
     # fix x axis limits if < 0.0
     if axes.get_xlim()[0] < 0.0:
         axes.set_xlim(left=0.0)

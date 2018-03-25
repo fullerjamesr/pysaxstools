@@ -2,6 +2,8 @@ import os
 import subprocess
 import shlex
 import numpy as np
+import sys
+
 
 # The following attempts to stop unecessary console window popups on Windows
 try:
@@ -9,6 +11,29 @@ try:
     _SUINFO.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 except:
     _SUINFO = None
+
+
+def value_is_string(value):
+    """Python 2 and 3 compatible string-ness check
+
+    Strings changed between Python 2 and 3 to bring unicode closer into the str fold, while Python 3 eliminated the
+    abstract base class `basestring`. How convenient :-/
+
+    See also:
+    https://stackoverflow.com/questions/4843173/how-to-check-if-type-of-a-variable-is-string
+
+    Parameters
+    ----------
+    value : any
+
+    Returns
+    -------
+    bool
+        Is `value` a string?
+    """
+    if sys.version_info[0] >= 3:
+        basestring = str
+    return isinstance(value, basestring)
 
 
 def which(program):
@@ -146,36 +171,51 @@ def try_or_self(func, x, print_err=False):
 
 
 def whichclose(a, b, rtol=1e-05, atol=1e-08):
+    """Determine the overlap between two sorted arrays
+
+    whichclose finds boolean masks such that numpy.allclose(a[a_mask], b[b_mask] == True. The overlap may not be
+    sequential in a given array.
+
+    Parameters
+    ----------
+    a : ndarray, sorted
+        a 1d array or arbirary length, sorted
+    b : ndarray, sorted
+        another 1d array of arbitrary length, sorted
+    rtol : float
+        see documentation for numpy.isclose(..)
+    atol : float
+        see documentation for numpy.isclose(..)
+
+    Returns
+    -------
+    intersect_a : boolean ndarray
+    intersect_b : boolean ndarray
+        A tuple of boolean masks, (intersect_a, intersect_b) for the input arrays `a` and `b`, respectively, where True
+        values represent an overlap in values within the provided tolerances. It is possible that the masks could be
+        entirely False, which indicates that there was no overlap found.
     """
-    whichclose is an analog of numpy's isclose(..) that accepts arrays of
-        differing lengths. The returned boolean masks mark the first overlapping
-        range of values such from each array for which numpy.allclose(..)
-        returns True.
+    # The problem is essentially to find the indices of values in `a` and `b` that form their intersection
+    # Conveniently, we stipulate that `a` and `b` are sorted
+    # `positions_right` are the indices in `a` where the items in `b` would fall
+    # For each item in `b`, we need to test closeness to these indices and these indices - 1
+    positions_right = np.searchsorted(a, b)
+    positions_left = np.copy(positions_right)
+    positions_left[positions_left > 0] -= 1
+    # the other gotcha is those items in `b` where they are outside `a` entirely
+    positions_right[positions_right == len(a)] -= 1
+    # TODO: there is some minor speed gains that might be had here by truncating redundant checks
 
-    Parameters:
-        a: a 1d array of arbitrary length
-        b: another 1d array of arbitrary length, regardless of a's length
-        rtol: see documentation for numpy.isclose(..)
-        atol: see documentation for numpy.isclose(..)
+    close_right = np.isclose(a[positions_right], b, rtol=rtol, atol=atol)
+    close_left = np.isclose(a[positions_left], b, rtol=rtol, atol=atol)
 
-    Returns:
-        A tuple of boolean masks, (a_mask,b_mask) for the input arrays a and b,
-        respectively, where True values represent the first overlap in values.
-    """
-    # record lengths for fast access and make all False boolean masks
-    len_a = len(a)
-    a_mask = np.zeros(len_a, dtype=np.bool)
-    len_b = len(b)
-    b_mask = np.zeros(len_b, dtype=np.bool)
+    # the overlapping positions in `b` are the logical (x)or of close_left and close_right
+    # xor lets us ignore cases where subsequent points in `a` are closer than the comparison tolerances
+    intersect_b = np.logical_xor(close_left, close_right)
 
-    # hunt for the overlap
-    for i in range(1, len_a + len_b):
-        if np.allclose(a[max(i - len_b, 0):min(i, len_a)], b[max(len_b - i, 0):min(len_b, len_b + len_a - i)],
-                       rtol=rtol, atol=atol):
-            # set boolean masks
-            a_mask[max(i - len_b, 0):min(i, len_a)] = True
-            b_mask[max(len_b - i, 0):min(len_b, len_b + len_a - i)] = True
-            # cut out early to save needless comparisons
-            return a_mask, b_mask
-    # if we get to here there's no match, womp womp
-    return a_mask, b_mask
+    # the overlapping positions in `a` are the indices in close_left/right
+    intersect_a_idx = np.setxor1d(positions_right[close_right], positions_left[close_left])
+    intersect_a = np.zeros(len(a), dtype=np.bool)
+    intersect_a[intersect_a_idx] = True
+
+    return intersect_a, intersect_b
