@@ -14,16 +14,12 @@ class Saxscurve(object):
     name: string, optional, a user-friendly ID
     """
 
-    def __init__(self, q, i, error=None, name=''):
-        # TODO: Add an optional argument "copy=(True, True, True)" to define whether a copy is needed for (q, i, error)
-        #       I think this would offer some big speedups. Note that the intention is still that Saxscurves are
-        #       immutable except when operators like *= += etc are used.
-        # TODO: Update functions in this file and elsewhere to NOT copy, when appropriate.
+    def __init__(self, q, i, error=None, name='', copy=(True, True, True)):
         # turn into numpy arrays first for fast length equality checks
-        q = np.array(q, copy=True, dtype=np.float64)
-        i = np.array(i, copy=True, dtype=np.float64)
+        q = np.array(q, copy=copy[0], dtype=np.float64)
+        i = np.array(i, copy=copy[1], dtype=np.float64)
         if error is not None:
-            error = np.array(error, copy=True, dtype=np.float64)
+            error = np.array(error, copy=copy[2], dtype=np.float64)
         # parameter checks
         if q is None or i is None or len(q) != len(i) or (error is not None and len(q) != len(error)):
             raise ValueError("Saxscurves should be constructed of two or three equal length arrays of values")
@@ -191,13 +187,14 @@ class Saxscurve(object):
     # Begin block of functions to make Saxscurves respond to native math
     #
     def __neg__(self):
-        return Saxscurve(q=self.q, i=-self.i, error=self.error, name=self.name)
+        return Saxscurve(q=self.q, i=-self.i, error=self.error, name=self.name, copy=(True, False, True))
 
     def __mul__(self, factor):
         return Saxscurve(q=self.q,
                          i=self.i * factor,
                          error=None if self.error is None else self.error * factor,
-                         name='' if (self.name is None or self.name == '') else self.name + '_scaled')
+                         name='' if (self.name is None or self.name == '') else self.name + '_scaled',
+                         copy=(True, False, False))
 
     def __imul__(self, factor):
         self.i *= factor
@@ -217,9 +214,12 @@ class Saxscurve(object):
 
     def __add__(self, factor):
         if isinstance(factor, Saxscurve):
-            return Saxscurve(*_common_saxscurve_add(self, factor))
+            newq, newi, newe = _common_saxscurve_add(self, factor)
+            need_q_copy = len(newq) == len(self.q)
+            need_e_copy = need_q_copy or (self.has_error != factor.has_error)
+            return Saxscurve(newq, newi, newe, copy=(need_q_copy, False, need_e_copy))
         else:
-            return Saxscurve(self.q, self.i + factor, self.error)
+            return Saxscurve(self.q, self.i + factor, self.error, copy=(True, False, True))
 
     def __iadd__(self, factor):
         if isinstance(factor, Saxscurve):
@@ -231,7 +231,7 @@ class Saxscurve(object):
         if isinstance(factor, Saxscurve):
             return Saxscurve(*_common_saxscurve_add(self, -factor))
         else:
-            return self + (-1.0 * factor)
+            return self + (-factor)
 
     def __isub__(self, factor):
         if isinstance(factor, Saxscurve):
@@ -260,10 +260,10 @@ def _common_saxscurve_add(curve1, curve2):
 
     Returns
     -------
-    q : 1d array
+    q : ndarray
         The overlapping q grid of both operands. The actual values are taken from `curve1` (this might be relevant in
         case of insignificant floating point round off differences between `curve1.q` and `curve2.q`
-    i : 1d array
+    i : ndarray
         The result of addition of the I(q) values on the overlapping q values
     error : 1d array
         The uncertainty in returned `i`. If both operands have associated errors, this is the propagated error over the
@@ -321,7 +321,7 @@ def read_saxs_file(path):
         The SAXS curve parsed from the file.
     """
     str_name = os.path.basename(path) if util.value_is_string(path) else str(path)
-    return Saxscurve(*load_data_columns(path), name=str_name)
+    return Saxscurve(*load_data_columns(path), name=str_name, copy=(False, False, False))
 
 
 def subrange_average(saxscurves, ranges, weight_by_error=False, error_model='propagate'):
