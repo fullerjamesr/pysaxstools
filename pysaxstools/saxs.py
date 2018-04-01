@@ -8,13 +8,44 @@ class Saxscurve(object):
     """
     A Saxscurve consists of 2 or 3 equal length arrays of floating point values representing and x-ray scattering
     profile:
-    q: The scattering angle
-    i: The scattering intensity
-    error: (optional) The uncertainty in the scattering intensity
-    name: string, optional, a user-friendly ID
+    - q: The scattering angle
+    - I(q), the scattering intensity at each corresponding angle
+    - error(q): (optional) The uncertainty in the scattering intensity at each angle
+
+    To facilitate careful and intuitive data management, note that Saxscurves act immutable by default except when
+    applying inplace operators (e.g., +=, *=, etc).
+
+    Attributes
+    ----------
+    q : ndarray
+        The scattering angles at which intensity has been measured or calculated
+    i : ndarray
+        I(q), the scattering intensity at each corresponding angle in q
+    error : ndarray or None
+        The uncertainty in each corresponding I(q). May be None if error is not available
+    has_error : bool
+        A shortcut returning whether `error` is not None
     """
 
     def __init__(self, q, i, error=None, name='', copy=(True, True, True)):
+        """
+        Parameters
+        ----------
+        q : array_like
+            Any object that can be used as the first argument to ``numpy.array``, representing the scattering angles at
+            which scattering has been sampled.
+        i : array_like
+            I(q). Of equal length to `q`, representing scattering intensity at each angle in `q`.
+        error : array_like, optional
+            Of equal length to `q`, representing the uncertainty (standard deviation) in each intensity measurement.
+        name : string-like, optional
+            A name/tag for the data, will be used as the legend entry for `pysaxstools.plot` functions by default.
+            Generally the filename if this Saxscurve was read from a file.
+        copy : Iterable(bool), optional
+            By default, Saxscurves make copies of the data provided in the `q`, `i`, and `error` parameters in order to
+            behave immutably. This can be overridden using this parameter -- `copy[0]` determines whether `q` is copied,
+            `copy[1]` whether `i` is copied, and `copy[2]` whether `error` is copied.
+        """
         # turn into numpy arrays first for fast length equality checks
         q = np.array(q, copy=copy[0], dtype=np.float64)
         i = np.array(i, copy=copy[1], dtype=np.float64)
@@ -33,6 +64,13 @@ class Saxscurve(object):
 
     @property
     def has_error(self):
+        """Does this Saxscurve has associated errors?
+
+        Returns
+        -------
+        bool
+            ``self.error is not None``
+        """
         return self.error is not None
 
     def __repr__(self):
@@ -392,7 +430,7 @@ def subrange_average(saxscurves, ranges, weight_by_error=False, error_model='pro
     else:
         raise ValueError("parameter error_model must be one of 'propagate' or 'sem'")
 
-    return Saxscurve(q=saxscurves[0].q, i=avg_i, error=avg_e)
+    return Saxscurve(q=saxscurves[0].q, i=avg_i, error=avg_e, copy=(True, False, False))
 
 
 def estimate_mass_by_qr(rg, vc=None, saxs=None, i_0=None, molecule='protein'):
