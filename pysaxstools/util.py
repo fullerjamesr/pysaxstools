@@ -194,7 +194,22 @@ def whichclose(a, b, rtol=1e-05, atol=1e-08):
         A tuple of boolean masks, (intersect_a, intersect_b) for the input arrays `a` and `b`, respectively, where True
         values represent an overlap in values within the provided tolerances. It is possible that the masks could be
         entirely False, which indicates that there was no overlap found.
+
+    Raises
+    ------
+    ValueError
+        If arrays `a` or `b` are not sorted, or if the difference between consecutive values in either array are within
+        the floating point error tolerance given by `rtol` and `atol`.
     """
+    # This method yields somewhat non-sensical results if values in `a` or `b` are closer together than the tolerance.
+    # TODO: find a way to deal with this instead of raising an exception?
+    a_diff = a[1:] - a[:-1]
+    b_diff = b[1:] - b[:-1]
+    if np.any(a_diff < (2 * a[-1] * rtol + atol)) or np.any(b_diff < (2 * b[-1] * rtol + atol)):
+        raise ValueError("Differences between sucessive values is within floating point error tolerance")
+    elif np.any(a_diff < 0.0) or np.any(b_diff < 0.0):
+        raise ValueError("Input arrays must be sorted")
+
     # The problem is essentially to find the indices of values in `a` and `b` that form their intersection
     # Conveniently, we stipulate that `a` and `b` are sorted
     # `positions_right` are the indices in `a` where the items in `b` would fall
@@ -204,7 +219,7 @@ def whichclose(a, b, rtol=1e-05, atol=1e-08):
     positions_left[positions_left > 0] -= 1
     # the other gotcha is those items in `b` where they are outside `a` entirely
     positions_right[positions_right == len(a)] -= 1
-    # TODO: there is some minor speed gains that might be had here by truncating redundant checks
+    # TODO: there is some minor speed gains that might be had here by truncating redundant checks?
 
     close_right = np.isclose(a[positions_right], b, rtol=rtol, atol=atol)
     close_left = np.isclose(a[positions_left], b, rtol=rtol, atol=atol)
